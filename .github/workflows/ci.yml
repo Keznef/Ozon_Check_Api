@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    paths:
+      - 'license-server/**'
+  pull_request:
+    paths:
+      - 'license-server/**'
+
+jobs:
+  build-and-health:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./license-server
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deps
+        run: pip install -r requirements.txt
+      - name: Start server
+        run: |
+          nohup python SERVER.PY &
+          sleep 2
+      - name: Health check
+        run: |
+          python - << 'PY'
+          import time,requests
+          for _ in range(20):
+              try:
+                  r = requests.get('http://127.0.0.1:8000/health', timeout=2)
+                  print('status:', r.json())
+                  break
+              except Exception as e:
+                  time.sleep(0.5)
+          else:
+              raise SystemExit('Health check failed')
+          PY
