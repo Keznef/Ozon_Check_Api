@@ -131,6 +131,11 @@ def disable_maintenance():
 def health():
     return {"status": "ok"}
 
+# Корневой маршрут, чтобы внешние проверки по '/' не давали 404
+@app.get("/")
+def root():
+    return {"status": "ok"}
+
 if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", os.getenv("API_PORT", "9000")))
