@@ -79,10 +79,31 @@ def check_key(payload: CheckRequest):
     if not client.get("active", True):
         return CheckResponse(status="disabled", message="Ключ отключён", active=False)
 
+    # Автоматическая установка даты первого запуска и даты окончания подписки (+30 дней)
+    try:
+        first_run_at = int(client.get("first_run_at", 0) or 0)
+    except Exception:
+        first_run_at = 0
+    if first_run_at <= 0:
+        first_run_at = _now_ts()
+        client["first_run_at"] = first_run_at
+        # Если дата окончания не задана — устанавливаем +30 дней от первого запуска
+        try:
+            expires_at_raw = int(client.get("expires_at", 0) or 0)
+        except Exception:
+            expires_at_raw = 0
+        if expires_at_raw <= 0:
+            client["expires_at"] = first_run_at + 30 * 86400
+        # Сохраняем изменения сразу, чтобы зафиксировать первый запуск
+        _write_json(CLIENTS_FILE, clients)
+
     expires_at = client.get("expires_at")
     days = _days_left(expires_at)
     if expires_at and _now_ts() > expires_at:
-        return CheckResponse(status="expired", message="Срок действия подписки закончился", active=False)
+        # Подписка истекла: удаляем ключ полностью из базы
+        clients["clients"] = [c for c in clients.get("clients", []) if c.get("api_key") != payload.api_key]
+        _write_json(CLIENTS_FILE, clients)
+        return CheckResponse(status="expired", message="Срок действия подписки закончился, ключ удалён", active=False)
 
     monthly_limit = int(client.get("monthly_limit", 0))
     used = int(client.get("used", 0))
